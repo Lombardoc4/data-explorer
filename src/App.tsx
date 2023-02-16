@@ -137,8 +137,8 @@ function SearchBar({searchVal, onSetSearchVal, children} : {children: JSX.Elemen
   
   return(
     <div className="card">
-      <h1>Data Explorer</h1>
-      <h2>Search your data</h2>
+      <h1>API Explorer</h1>
+      <div style={{paddingBottom: '0.5rem'}}>{'\u00A0'}</div>
       <form autoComplete="off" className='search-form'>
         <svg 
           onClick={() => searchInput.current && searchInput.current.focus()}
@@ -223,6 +223,7 @@ function saveLocalStorage(url: string) {
 
 function DataSelector({setData} : {setData: (data: FreeObject[]) => void}) {
 const [, updateState] = useState({});
+const [fetchError, updateErrors] = useState('');
 const forceUpdate = useCallback(() => updateState({}), []);
 const formRef = useRef<HTMLFormElement|null>(null)
 
@@ -241,6 +242,7 @@ const formRef = useRef<HTMLFormElement|null>(null)
     
     try {
       const res = await fetch(url)
+      
       if (!res.ok) {
         throw new Error('Bad Response', {
           cause: {
@@ -252,25 +254,45 @@ const formRef = useRef<HTMLFormElement|null>(null)
       const data  = await res.json();
       
       
-      if (!Array.isArray(data)){
-        setData([data]);
-        return
-      }
-      
       // Set Data
-      setData(data);
+      setData(Array.isArray(data) ? data : [data])
+      
+      // Save Input to localstorage
+      saveLocalStorage(url);
+      
+      // Clear errors
+      updateErrors('')
       
       
     } catch (err: any) { //!Fix type
-      console.log('err', err)
-      switch(err.cause.res?.status) {
-        case 400: break;
-        case 401: break;
-        case 404: break;
-        case 500: break;
+      if (err.cause) {
+        
+        switch(err.cause.res?.status) {
+            case 400: break;
+            case 401: break;
+            case 404: break;
+            case 500: break;
+          }
+          // handle(err)
       }
-      // handle(err)
-      throw err
+      
+      if (typeof err.json === "function") {
+        err.json().then(jsonError => {
+            console.log("Json error from API");
+            console.log(jsonError);
+        }).catch(genericError => {
+            console.log("Generic error from API");
+            console.log(err.statusText);
+        });
+      }
+        
+        
+        // console.log("Fetch error");
+        console.log(err);
+        // 
+        updateErrors('Data could not be accessed')
+      
+      // throw err
     }
   }
   
@@ -293,18 +315,17 @@ const formRef = useRef<HTMLFormElement|null>(null)
       if (url && typeof url === 'object' && url.length > 0 && isValidUrl(dataUrl)){
         fetchData(dataUrl);
         
-      // Save Input to localstorage
-        saveLocalStorage(dataUrl);
       }
     }
   }
   
+  
   return(
     <>
         <div className="card">
-          <h1>Data Explorer</h1>
-          <h2>Dataset Url</h2>
+          <h1>API Explorer</h1>
           <form ref={formRef} autoComplete="off" onSubmit={handleSubmit} className='data-url-form'>
+            <div style={{paddingBottom: '0.5rem', color: '#ff0000'}}>{fetchError.length > 0 ? fetchError: "\u00A0"}</div>
             <div className='data-url-input'>
                 
               <svg 
@@ -320,25 +341,31 @@ const formRef = useRef<HTMLFormElement|null>(null)
           </form>
             <button 
             onClick={() => setData(PLANTS)}
-            >Use Default</button>
+            >Example Dataset</button>
             </div>
             
           {localStorage.pastUrls && 
-            <div>
+            <>
               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                <h2>Past Urls</h2>
+                <h2>History</h2>
                 <button className='red' onClick={() => {forceUpdate(); delete localStorage.pastUrls}}>Clear</button>
               </div>
               {JSON.parse(localStorage.pastUrls).reverse().map((url :string) => (
-                <div key={url}>
-                  <p>
-                    <button onClick={() => {removeLocalStorageItem(url); forceUpdate()}}>Remove</button>
+                <div key={url} style={{display: 'flex' , justifyContent: 'space-between', alignItems: 'center'}}>
+                  <div>
+                    {url.length > 47 ? url.substring(0, 47) + '...' : url} {' '}
+                    <svg   onClick={() => {removeLocalStorageItem(url); forceUpdate()}} xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="#ff0000" className="bi bi-trash" viewBox="0 0 16 16">
+                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                      </svg>
+                  </div>
+                  <div>
+                    
                     <button onClick={() => fetchData(url)}>Explore</button>
-                    {url.length > 47 ? url.substring(0, 47) + '...' : url} 
-                  </p>
+                  </div>
                 </div>
               ))}
-            </div>
+            </>
           }
         </>
   )
